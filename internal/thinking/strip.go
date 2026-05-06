@@ -30,7 +30,7 @@ func StripThinkingConfig(body []byte, provider string) []byte {
 	var paths []string
 	switch provider {
 	case "claude":
-		paths = []string{"thinking"}
+		paths = []string{"thinking", "output_config.effort"}
 	case "gemini":
 		paths = []string{"generationConfig.thinkingConfig"}
 	case "gemini-cli", "antigravity":
@@ -44,13 +44,6 @@ func StripThinkingConfig(body []byte, provider string) []byte {
 		}
 	case "codex":
 		paths = []string{"reasoning.effort"}
-	case "iflow":
-		paths = []string{
-			"chat_template_kwargs.enable_thinking",
-			"chat_template_kwargs.clear_thinking",
-			"reasoning_split",
-			"reasoning_effort",
-		}
 	default:
 		return body
 	}
@@ -58,6 +51,13 @@ func StripThinkingConfig(body []byte, provider string) []byte {
 	result := body
 	for _, path := range paths {
 		result, _ = sjson.DeleteBytes(result, path)
+	}
+
+	// Avoid leaving an empty output_config object for Claude when effort was the only field.
+	if provider == "claude" {
+		if oc := gjson.GetBytes(result, "output_config"); oc.Exists() && oc.IsObject() && len(oc.Map()) == 0 {
+			result, _ = sjson.DeleteBytes(result, "output_config")
+		}
 	}
 	return result
 }
